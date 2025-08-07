@@ -2,6 +2,14 @@ pipeline {
     agent any
 
     stages {
+
+        stage('Check Docker') {
+            steps {
+                sh 'which docker || echo "Docker not installed!"'
+                sh 'docker --version || echo "Docker not found!"'
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
                 script {
