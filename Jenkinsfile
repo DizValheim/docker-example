@@ -1,11 +1,15 @@
 pipeline {
     agent any
 
+    environment {
+        // This tells Jenkins/WSL to use Windows' Docker socket
+        DOCKER_HOST = 'tcp://127.0.0.1:2375'
+    }
+
     stages {
 
         stage('Check Docker') {
             steps {
-                sh 'which docker || echo "Docker not installed!"'
                 sh 'docker --version || echo "Docker not found!"'
             }
         }
@@ -13,9 +17,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Use the docker build command to build the image from the Dockerfile
-                    // and tag it with the current build number
-                    docker.build("my-python-app:${env.BUILD_NUMBER}")
+                    // Build image using Windows Docker daemon
+                    sh 'docker build -t my-python-app:${BUILD_NUMBER} .'
                 }
             }
         }
@@ -23,15 +26,18 @@ pipeline {
         stage('Run Container') {
             steps {
                 script {
-                    // Use the built image to run a container.
-                    // The 'withRun' block ensures the container is cleaned up after the stage.
-                    docker.image("my-python-app:${env.BUILD_NUMBER}").withRun("-p 8000:5000") { c ->
-                        // Wait for a few seconds to let the application start
-                        sleep 10
-                        
-                        // Use curl to test that the application is running
-                        sh "curl -s http://localhost:8000"
-                    }
+                    // Run container in detached mode on Windows Docker
+                    sh 'docker run -d --name test_app_${BUILD_NUMBER} -p 8000:5000 my-python-app:${BUILD_NUMBER}'
+                    
+                    // Wait for container to start
+                    sleep 10
+                    
+                    // Test app
+                    sh 'curl -s http://localhost:8000 || echo "App not reachable!"'
+                    
+                    // Stop container
+                    sh 'docker stop test_app_${BUILD_NUMBER}'
+                    sh 'docker rm test_app_${BUILD_NUMBER}'
                 }
             }
         }
